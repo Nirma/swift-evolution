@@ -38,16 +38,18 @@ Given a `clamped(to:)` function it could be called in the following ways, yieldi
 
 ## Detailed design
 
+### Overview
+
 The implementation of `clamped(to:)` that is being proposed is composed of a protocol extension on `Comparable` accepting ranges of the types `ClosedRange`, `PartialRangeFrom` and `PartialRangeThrough`.
 
 ```swift
 extension Comparable {
     func clamped(to range: ClosedRange<Self>) -> Self {
-        max(min(self, range.upperBound), range.lowerBound)
+        max(range.lowerBound, min(self, range.upperBound))
     }
 
     func clamped(to range: PartialRangeFrom<Self>) -> Self {
-        max(self, range.lowerBound)
+        max(range.lowerBound, self)
     }
 
     func clamped(to range: PartialRangeThrough<Self>) -> Self {
@@ -55,6 +57,53 @@ extension Comparable {
     }
 }
 ```
+
+### Behaviour of clamped(to:)
+#### Value being clamped is less than lowerBound
+If the value being clamped is less than the `lowerBound` the `lowerBound` will be returned.
+
+```swift
+100.clamped(to: 500...1000) // returns 500
+```
+
+#### Value being clamped is greater than upperBound
+If the value being clamped is greater than the the upperBound then the `upperBound` will be returned.
+
+```swift
+9.clamped(to: 1...5) // returns 5
+```
+
+#### Value being clamped is within rang
+If the value being clamped is within the range the value is returned as is.
+
+```swift
+9.clamped(to: 1...10) // returns 9
+```
+
+#### Special values
+Special values such as `.nan` when clamped will return `.nan` because clamping `.nan` does not make sense.
+
+```swift
+Double.nan.clamped(to: 0...10) // returns .nan
+```
+
+#### Case where value is already within range
+If the value being clamped already falls within the provided range then `self` will be returned.
+To clarify that this is the case lets look at the `min` and `max` functions that are used in the implementation of `clamped(to:)` .
+
+in the case of `clamped(to range: ClosedRange<Self>) -> Self`
+
+```swift
+extension Comparable {
+    func clamped(to range: ClosedRange<Self>) -> Self {
+        max(range.lowerBound, min(self, range.upperBound))
+    }
+```
+
+we can see that `max` is being called with the lowerBound passed in as the leftmost parameter followed by `min(self, range.upperBound)`.
+Looking at the definition of `max` we can see as documented `max(a, b)` will return `b` if both values are equal.
+Here `min(self, range.upperBound)` is being passed in.
+Looking at the definition of `min` will show that `min(a, b)` where `a == b` is `true` will return `a` unmodified, here we are passing in `self` in that position bringing us to the conclusion that `a.clamped(to: b...c)` when `a` is equal to the operands will return `a` unmodified. 
 
 
 ## Source compatibility
